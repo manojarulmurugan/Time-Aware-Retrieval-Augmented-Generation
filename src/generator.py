@@ -1,6 +1,6 @@
 """
-Generation layer: grounded answer synthesis via OpenAI GPT-4o-mini.
-Returns None silently when OPENAI_API_KEY is not set.
+Generation layer: grounded answer synthesis via Groq (free tier).
+Returns None silently when GROQ_API_KEY is not set.
 """
 
 import logging
@@ -24,14 +24,14 @@ def generate_answer(
     query: str,
     reranked_passages: list,
     target_year: int,
-    model: str = "gpt-4o-mini",
+    model: str = "llama-3.1-8b-instant",
 ) -> Optional[str]:
-    api_key = os.getenv("OPENAI_API_KEY", "").strip()
+    api_key = os.getenv("GROQ_API_KEY", "").strip()
     if not api_key:
         return None
 
     try:
-        import openai
+        from groq import Groq
 
         context_parts = []
         for i, p in enumerate(reranked_passages[:5], start=1):
@@ -49,7 +49,7 @@ def generate_answer(
             "Answer (cite passage numbers):"
         )
 
-        client = openai.OpenAI(api_key=api_key)
+        client = Groq(api_key=api_key)
         response = client.chat.completions.create(
             model=model,
             messages=[

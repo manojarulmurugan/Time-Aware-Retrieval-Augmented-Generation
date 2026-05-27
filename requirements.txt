@@ -35,7 +35,7 @@ flake8>=6.0.0
 fastapi>=0.100.0
 uvicorn[standard]>=0.23.0
 aiofiles>=23.0.0
-openai>=1.0.0
+groq>=0.4.0
 httpx>=0.24.0
 pyyaml>=6.0
 
