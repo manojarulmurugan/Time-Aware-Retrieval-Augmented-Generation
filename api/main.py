@@ -8,8 +8,6 @@ import time
 from contextlib import asynccontextmanager
 from typing import Optional
 
-# Prevent HuggingFace fast-tokenizer from forking child processes inside
-# the uvicorn worker — avoids the deadlock/segfault under async event loops.
 os.environ.setdefault("TOKENIZERS_PARALLELISM", "false")
 
 from fastapi import FastAPI
@@ -33,7 +31,7 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(
     title="Time-Aware RAG",
-    description="Temporal QA with fine-tuned Contriever + MRAG re-ranking",
+    description="Temporal QA — Base Contriever vs Time-Aware Contriever + MRAG",
     lifespan=lifespan,
 )
 
@@ -47,7 +45,7 @@ app.add_middleware(
 
 class QueryRequest(BaseModel):
     query: str
-    target_year: int = Field(default=2020, ge=1850, le=2024)
+    target_year: int = Field(default=1920, ge=1800, le=1963)
     top_k: int = Field(default=20, ge=1, le=50)
     generate: bool = True
 
@@ -55,16 +53,15 @@ class QueryRequest(BaseModel):
 class QueryResponse(BaseModel):
     query: str
     target_year: int
-    candidates: list
-    reranked: list
+    base_results: list        # top-10 from base Contriever (baseline)
+    reranked: list            # top-10 from time-aware Contriever + MRAG (your system)
     answer: Optional[str]
     latency_ms: float
 
 
 @app.post("/query", response_model=QueryResponse)
 def query_endpoint(req: QueryRequest):
-    # Sync def — FastAPI runs this in a thread pool, keeping torch out of the
-    # async event loop (required to avoid tokenizer multiprocessing deadlock).
+    # Sync def — FastAPI runs in thread pool, keeping torch off the async event loop.
     start = time.time()
     result = run_query(_state, req.query, req.target_year, req.top_k)
     answer = None
@@ -74,7 +71,7 @@ def query_endpoint(req: QueryRequest):
     return QueryResponse(
         query=req.query,
         target_year=req.target_year,
-        candidates=result["candidates"],
+        base_results=result["base_results"],
         reranked=result["reranked"],
         answer=answer,
         latency_ms=latency_ms,
@@ -89,5 +86,5 @@ async def health():
     }
 
 
-# Static frontend — must be mounted LAST (catch-all route)
+# Static frontend — mounted LAST (catch-all route)
 app.mount("/", StaticFiles(directory="frontend", html=True), name="frontend")

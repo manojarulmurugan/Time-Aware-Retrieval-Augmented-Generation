@@ -1,536 +1,303 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>Time-Aware RAG</title>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Time-Aware RAG — Temporal Question Answering</title>
 <style>
-  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-
   :root {
     --bg: #0d0d0d;
-    --surface: #111111;
-    --card: #161616;
+    --surface: #161616;
+    --surface2: #1e1e1e;
     --border: #2a2a2a;
-    --text: #e8e8e8;
-    --muted: #888888;
     --amber: #f5a623;
-    --amber-dim: #7a5010;
-    --green-bg: #0a1f0a;
-    --green: #4ade80;
-    --red: #f87171;
-    --hover: #1a1a1a;
+    --amber-dim: rgba(245,166,35,0.12);
+    --green: #22c55e;
+    --green-dim: rgba(34,197,94,0.10);
+    --red: #ef4444;
+    --red-dim: rgba(239,68,68,0.10);
+    --text: #e8e8e8;
+    --muted: #666;
+    --tag-bg: #2a2a2a;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: var(--bg); color: var(--text); font-family: 'Inter', system-ui, sans-serif; font-size: 13px; min-height: 100vh; }
+
+  /* ── Header ── */
+  header {
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    padding: 12px 24px;
+    display: flex; align-items: center; justify-content: space-between;
+  }
+  .logo { font-size: 18px; font-weight: 700; color: var(--amber); letter-spacing: -0.3px; }
+  .logo span { color: var(--text); font-weight: 400; }
+  .header-meta { color: var(--muted); font-size: 12px; }
+  .badge {
+    display: inline-block; background: var(--amber-dim); color: var(--amber);
+    border: 1px solid rgba(245,166,35,0.3); border-radius: 4px;
+    padding: 2px 8px; font-size: 11px; font-weight: 600; margin-left: 8px;
   }
 
-  body {
-    background: var(--bg);
-    color: var(--text);
-    font-family: system-ui, -apple-system, sans-serif;
-    font-size: 14px;
-    line-height: 1.5;
-    min-height: 100vh;
+  /* ── Comparison banner ── */
+  .comparison-bar {
+    display: grid; grid-template-columns: 1fr auto 1fr;
+    background: var(--surface); border-bottom: 1px solid var(--border);
+    text-align: center; font-size: 11px; font-weight: 600; letter-spacing: 0.5px;
   }
+  .cbar-base  { padding: 8px; color: var(--muted); border-right: 1px solid var(--border); }
+  .cbar-mid   { padding: 8px 24px; color: var(--muted); }
+  .cbar-time  { padding: 8px; color: var(--amber); border-left: 1px solid var(--border); }
 
-  /* ── Layout ── */
+  /* ── Main layout ── */
   .layout {
     display: grid;
-    grid-template-columns: 280px 1fr 280px;
-    gap: 16px;
-    max-width: 1400px;
-    margin: 0 auto;
-    padding: 20px 16px;
-    min-height: 100vh;
-    align-items: start;
+    grid-template-columns: 1fr 300px 1fr;
+    height: calc(100vh - 88px);
+    overflow: hidden;
   }
 
-  @media (max-width: 960px) {
-    .layout { grid-template-columns: 1fr; }
-  }
-
-  /* ── Cards & panels ── */
+  /* ── Panels ── */
   .panel {
-    background: var(--surface);
-    border: 1px solid var(--border);
-    border-radius: 10px;
-    overflow: hidden;
+    display: flex; flex-direction: column;
+    overflow: hidden; border-right: 1px solid var(--border);
   }
-
+  .panel:last-child { border-right: none; }
   .panel-header {
-    padding: 12px 16px;
+    padding: 10px 14px;
+    background: var(--surface2);
     border-bottom: 1px solid var(--border);
-    display: flex;
-    align-items: baseline;
-    gap: 8px;
+    font-size: 11px; font-weight: 600; letter-spacing: 0.5px; text-transform: uppercase;
+    flex-shrink: 0;
   }
+  .panel-header.base-hdr  { color: var(--muted); }
+  .panel-header.time-hdr  { color: var(--amber); }
+  .panel-body { flex: 1; overflow-y: auto; padding: 10px; }
 
-  .panel-title {
-    font-size: 13px;
-    font-weight: 600;
-    color: var(--text);
+  /* ── Center control panel ── */
+  .center-panel {
+    border-left: 1px solid var(--border);
+    border-right: 1px solid var(--border);
+    display: flex; flex-direction: column; overflow-y: auto;
+    padding: 16px 14px; gap: 14px; background: var(--surface);
   }
-
-  .panel-subtitle {
-    font-size: 11px;
-    color: var(--muted);
+  .section-label {
+    font-size: 10px; font-weight: 600; text-transform: uppercase;
+    letter-spacing: 0.6px; color: var(--muted); margin-bottom: 6px;
   }
-
-  .panel-body { padding: 16px; }
-
-  /* ── Left column ── */
-  .left-col { display: flex; flex-direction: column; gap: 12px; }
-
-  .brand { padding: 4px 0 8px; }
-
-  .brand h1 {
-    font-size: 20px;
-    font-weight: 700;
-    color: var(--amber);
-    letter-spacing: -0.5px;
+  textarea {
+    width: 100%; background: var(--surface2); border: 1px solid var(--border);
+    border-radius: 6px; color: var(--text); font-size: 13px; padding: 9px 10px;
+    resize: vertical; min-height: 72px; font-family: inherit; line-height: 1.5;
+    outline: none; transition: border-color .15s;
   }
-
-  .brand p {
-    font-size: 12px;
-    color: var(--muted);
-    margin-top: 2px;
+  textarea:focus { border-color: var(--amber); }
+  .year-row { display: flex; align-items: center; gap: 8px; }
+  .year-row input[type=number] {
+    width: 80px; background: var(--surface2); border: 1px solid var(--border);
+    border-radius: 6px; color: var(--amber); font-size: 15px; font-weight: 700;
+    padding: 6px 10px; outline: none; text-align: center;
+    transition: border-color .15s;
   }
-
-  label {
-    display: block;
-    font-size: 11px;
-    font-weight: 600;
-    color: var(--muted);
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
-    margin-bottom: 5px;
-  }
-
-  textarea, input[type="number"] {
-    width: 100%;
-    background: var(--card);
-    border: 1px solid var(--border);
-    border-radius: 6px;
-    color: var(--text);
-    font-family: inherit;
-    font-size: 13px;
-    padding: 9px 11px;
-    resize: vertical;
-    outline: none;
-    transition: border-color 0.15s;
-  }
-
-  textarea:focus, input[type="number"]:focus {
-    border-color: var(--amber-dim);
-  }
-
-  input[type="number"] { resize: none; }
-
-  .chips {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 6px;
-    margin-top: 8px;
-  }
-
-  .chip {
-    background: var(--card);
-    border: 1px solid var(--border);
-    border-radius: 20px;
-    color: var(--muted);
-    cursor: pointer;
-    font-size: 11px;
-    padding: 4px 10px;
-    transition: border-color 0.15s, color 0.15s;
-  }
-
-  .chip:hover { border-color: var(--amber-dim); color: var(--amber); }
-
+  .year-row input[type=number]:focus { border-color: var(--amber); }
+  .year-label { color: var(--muted); font-size: 12px; }
   .run-btn {
-    width: 100%;
-    padding: 11px;
-    background: var(--amber);
-    color: #000;
-    font-size: 14px;
-    font-weight: 700;
-    border: none;
-    border-radius: 7px;
-    cursor: pointer;
-    box-shadow: 0 0 16px rgba(245,166,35,0.25);
-    transition: opacity 0.15s, box-shadow 0.15s;
+    width: 100%; padding: 11px; background: var(--amber); color: #000;
+    font-weight: 700; font-size: 14px; border: none; border-radius: 8px;
+    cursor: pointer; transition: opacity .15s, transform .1s;
   }
+  .run-btn:hover { opacity: .9; }
+  .run-btn:active { transform: scale(.98); }
+  .run-btn:disabled { opacity: .4; cursor: not-allowed; }
 
-  .run-btn:hover { opacity: 0.9; box-shadow: 0 0 24px rgba(245,166,35,0.45); }
-  .run-btn:disabled { opacity: 0.45; cursor: not-allowed; box-shadow: none; }
+  /* example queries */
+  .example-btn {
+    display: block; width: 100%; text-align: left;
+    background: var(--surface2); border: 1px solid var(--border);
+    border-radius: 6px; color: var(--muted); font-size: 11px;
+    padding: 6px 9px; cursor: pointer; margin-bottom: 5px;
+    transition: border-color .15s, color .15s;
+  }
+  .example-btn:hover { border-color: var(--amber); color: var(--text); }
 
+  /* metrics card */
   .metrics-card {
-    background: var(--card);
-    border: 1px solid var(--border);
-    border-radius: 8px;
-    padding: 12px;
+    background: var(--amber-dim); border: 1px solid rgba(245,166,35,0.25);
+    border-radius: 8px; padding: 10px 12px;
   }
+  .metrics-card .hit { font-size: 16px; font-weight: 700; color: var(--amber); }
+  .metrics-card .hit small { font-size: 10px; font-weight: 400; color: var(--muted); display: block; margin-top: 2px; }
+  .metrics-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-top: 8px; }
+  .m-cell { background: rgba(0,0,0,0.2); border-radius: 5px; padding: 5px 7px; }
+  .m-val { font-size: 12px; font-weight: 600; color: var(--text); }
+  .m-lbl { font-size: 10px; color: var(--muted); }
 
-  .metrics-label {
-    font-size: 10px;
-    font-weight: 700;
-    color: var(--amber);
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
-    margin-bottom: 6px;
+  /* answer box */
+  .answer-box {
+    background: var(--green-dim); border: 1px solid rgba(34,197,94,0.2);
+    border-radius: 8px; padding: 10px 12px;
   }
+  .answer-box .ans-hdr { font-size: 10px; font-weight: 600; color: var(--green); letter-spacing: 0.5px; text-transform: uppercase; margin-bottom: 6px; }
+  .answer-text { font-size: 12px; line-height: 1.6; color: var(--text); white-space: pre-wrap; }
+  .answer-meta { font-size: 10px; color: var(--muted); margin-top: 6px; }
+  .no-key { color: var(--muted); font-size: 11px; line-height: 1.5; font-style: italic; }
 
-  .metrics-stat {
-    font-size: 13px;
-    color: var(--text);
-    font-weight: 500;
+  /* loading */
+  .loading-box {
+    background: var(--surface2); border: 1px solid var(--border);
+    border-radius: 8px; padding: 10px 12px;
+    display: none;
   }
+  .loading-box.visible { display: block; }
+  .loading-step { font-size: 11px; color: var(--muted); padding: 2px 0; }
+  .loading-step.active { color: var(--amber); }
+  .loading-step.done { color: var(--green); }
+  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.4} }
+  .pulsing { animation: pulse 1.2s infinite; }
 
-  .metrics-sub { font-size: 11px; color: var(--muted); margin-top: 2px; }
-
-  /* Collapsible how-it-works */
-  .collapsible summary {
-    cursor: pointer;
-    font-size: 12px;
-    font-weight: 600;
-    color: var(--muted);
-    padding: 8px 0;
-    list-style: none;
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    user-select: none;
+  /* passage cards */
+  .passage-card {
+    background: var(--surface2); border: 1px solid var(--border);
+    border-radius: 8px; padding: 10px 12px; margin-bottom: 8px;
+    transition: border-color .15s;
   }
-
-  .collapsible summary::before { content: "▶"; font-size: 9px; transition: transform 0.2s; }
-  .collapsible[open] summary::before { transform: rotate(90deg); }
-
-  .how-steps {
-    margin-top: 8px;
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
-  }
-
-  .how-step {
-    display: flex;
-    gap: 10px;
-    font-size: 12px;
-    color: var(--muted);
-  }
-
-  .how-step-num {
-    background: var(--amber);
-    color: #000;
-    font-size: 10px;
-    font-weight: 700;
-    width: 18px;
-    height: 18px;
-    border-radius: 50%;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    flex-shrink: 0;
-    margin-top: 1px;
-  }
-
-  .github-link {
-    font-size: 11px;
-    color: var(--muted);
-    text-decoration: none;
-    display: block;
-    text-align: center;
-    padding: 4px 0;
-    transition: color 0.15s;
-  }
-
-  .github-link:hover { color: var(--amber); }
-
-  /* ── Middle column ── */
-  .mid-col { display: flex; flex-direction: column; gap: 16px; }
-
-  /* ── Right column ── */
-  .right-col { display: flex; flex-direction: column; gap: 12px; }
-
-  .answer-panel {
-    background: var(--green-bg);
-    border: 1px solid #1a3a1a;
-    border-radius: 10px;
-    overflow: hidden;
-  }
-
-  .answer-panel .panel-header { border-bottom-color: #1a3a1a; }
-  .answer-panel .panel-title { color: var(--green); }
-
-  .answer-text {
-    padding: 16px;
-    font-size: 13px;
-    line-height: 1.7;
-    color: var(--green);
-    min-height: 120px;
-    white-space: pre-wrap;
-  }
-
-  .answer-empty {
-    padding: 16px;
-    font-size: 12px;
-    color: #2a5a2a;
-    min-height: 120px;
-    font-style: italic;
-  }
-
-  .latency-badge {
-    font-size: 11px;
-    font-family: ui-monospace, monospace;
-    color: var(--muted);
-    padding: 8px 16px;
-    border-top: 1px solid #1a3a1a;
-  }
-
-  .grounded-note {
-    font-size: 10px;
-    color: #2a5a2a;
-    padding: 0 16px 10px;
-  }
-
-  /* ── Passage cards ── */
-  .passage-list { display: flex; flex-direction: column; gap: 8px; padding: 12px; }
-
-  .pcard {
-    background: var(--card);
-    border: 1px solid var(--border);
-    border-radius: 7px;
-    overflow: hidden;
-    cursor: pointer;
-    transition: border-color 0.15s;
-  }
-
-  .pcard:hover { border-color: #444; }
-
-  .pcard.target-year-match {
+  .passage-card:hover { border-color: #3a3a3a; }
+  .passage-card.temporal-match {
     border-left: 3px solid var(--amber);
-    box-shadow: -2px 0 12px rgba(245,166,35,0.08);
+    background: linear-gradient(90deg, rgba(245,166,35,0.05) 0%, var(--surface2) 40%);
   }
-
-  .pcard-header {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    padding: 9px 12px;
+  .passage-card.temporal-miss {
+    border-left: 3px solid var(--red);
+    background: linear-gradient(90deg, rgba(239,68,68,0.04) 0%, var(--surface2) 40%);
   }
-
-  .rank-num {
-    font-size: 13px;
-    font-weight: 700;
-    color: var(--amber);
-    font-family: ui-monospace, monospace;
-    min-width: 26px;
-  }
-
-  .score-badge {
-    font-family: ui-monospace, monospace;
-    font-size: 11px;
-    color: var(--muted);
-    background: var(--surface);
-    border: 1px solid var(--border);
-    border-radius: 4px;
-    padding: 2px 6px;
-    margin-left: auto;
-  }
-
-  .year-tags { display: flex; gap: 4px; flex-wrap: wrap; }
-
+  .card-top { display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px; }
+  .card-rank { font-size: 11px; font-weight: 700; color: var(--muted); }
+  .card-score { font-size: 11px; font-weight: 600; color: var(--muted); }
+  .year-tags { display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 6px; }
   .year-tag {
-    font-size: 10px;
-    font-family: ui-monospace, monospace;
-    background: rgba(245,166,35,0.12);
-    color: var(--amber);
-    border: 1px solid rgba(245,166,35,0.25);
-    border-radius: 3px;
-    padding: 1px 5px;
+    background: var(--tag-bg); color: var(--muted); border-radius: 4px;
+    padding: 1px 6px; font-size: 10px; font-weight: 600;
+  }
+  .year-tag.match { background: var(--amber-dim); color: var(--amber); border: 1px solid rgba(245,166,35,0.3); }
+  .year-tag.none { font-style: italic; }
+  .card-text { font-size: 12px; line-height: 1.55; color: #aaa; }
+  .match-indicator {
+    font-size: 10px; font-weight: 600; margin-top: 6px; padding: 2px 6px;
+    border-radius: 4px; display: inline-block;
+  }
+  .match-indicator.yes { background: var(--amber-dim); color: var(--amber); }
+  .match-indicator.no  { background: var(--red-dim); color: var(--red); }
+
+  /* empty / placeholder */
+  .placeholder {
+    color: var(--muted); font-size: 12px; text-align: center;
+    padding: 40px 20px; line-height: 1.7;
   }
 
-  .pcard-text {
-    font-size: 12px;
-    color: var(--muted);
-    padding: 0 12px 10px;
-    line-height: 1.5;
-  }
-
-  .pcard-full {
-    display: none;
-    font-size: 12px;
-    color: #aaa;
-    padding: 0 12px 10px;
-    line-height: 1.6;
-    border-top: 1px solid var(--border);
-    margin-top: 4px;
-    padding-top: 8px;
-    white-space: pre-wrap;
-    word-break: break-word;
-  }
-
-  .pcard.expanded .pcard-full { display: block; }
-
-  /* ── Skeleton loaders ── */
-  .skeleton {
-    background: linear-gradient(90deg, var(--card) 25%, #1e1e1e 50%, var(--card) 75%);
-    background-size: 200% 100%;
-    animation: shimmer 1.4s infinite;
-    border-radius: 5px;
-  }
-
-  @keyframes shimmer {
-    0% { background-position: 200% 0; }
-    100% { background-position: -200% 0; }
-  }
-
-  .skeleton-card { height: 72px; margin-bottom: 8px; }
-
-  /* ── Status banner ── */
-  .status-bar {
-    display: none;
-    align-items: center;
-    gap: 8px;
-    background: var(--card);
-    border: 1px solid var(--border);
-    border-radius: 7px;
-    padding: 10px 14px;
-    font-size: 12px;
-    color: var(--muted);
-    margin-bottom: 4px;
-  }
-
-  .status-bar.visible { display: flex; }
-
-  .spinner {
-    width: 14px;
-    height: 14px;
-    border: 2px solid var(--border);
-    border-top-color: var(--amber);
-    border-radius: 50%;
-    animation: spin 0.7s linear infinite;
-    flex-shrink: 0;
-  }
-
-  @keyframes spin { to { transform: rotate(360deg); } }
-
-  /* ── Error banner ── */
-  .error-bar {
-    display: none;
-    background: #1a0a0a;
-    border: 1px solid #4a1a1a;
-    border-radius: 7px;
-    padding: 10px 14px;
-    font-size: 12px;
-    color: var(--red);
-    margin-bottom: 4px;
-  }
-
-  .error-bar.visible { display: block; }
-
-  /* ── Empty states ── */
-  .empty-state {
-    padding: 32px 16px;
-    text-align: center;
-    font-size: 12px;
-    color: var(--muted);
-  }
+  /* scrollbar */
+  ::-webkit-scrollbar { width: 5px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: #2a2a2a; border-radius: 3px; }
 </style>
 </head>
 <body>
+
+<header>
+  <div class="logo">&#x23F1; Time-Aware <span>RAG</span></div>
+  <div class="header-meta">
+    ChroniclingAmericaQA &middot; 12,695 passages
+    <span class="badge">59.1% Hit@1</span>
+  </div>
+</header>
+
+<div class="comparison-bar">
+  <div class="cbar-base">&#x1F535; BASELINE &mdash; facebook/contriever-msmarco</div>
+  <div class="cbar-mid">vs</div>
+  <div class="cbar-time">&#x26A1; YOUR SYSTEM &mdash; Time-Aware Contriever + MRAG</div>
+</div>
+
 <div class="layout">
 
-  <!-- ══ LEFT COLUMN ══ -->
-  <div class="left-col">
-    <div class="brand">
-      <h1>⏱ Time-Aware RAG</h1>
-      <p>Temporal Question Answering</p>
+  <!-- LEFT: Base Contriever results -->
+  <div class="panel">
+    <div class="panel-header base-hdr">&#x1F4E5; Base Contriever Retrieval <span style="font-weight:400;color:#444">&mdash; no temporal awareness</span></div>
+    <div class="panel-body" id="base-results">
+      <div class="placeholder">Run a query to see baseline retrieval.<br>Standard Contriever &mdash; semantically similar but temporally blind.</div>
+    </div>
+  </div>
+
+  <!-- CENTER: Controls -->
+  <div class="center-panel">
+
+    <div>
+      <div class="section-label">Query</div>
+      <textarea id="query-input" placeholder="Ask a time-sensitive question about American history&#x2026;">Who led the labor movement in the 1920s?</textarea>
     </div>
 
     <div>
-      <label>Query</label>
-      <textarea id="query" rows="4" placeholder="Ask a time-sensitive question about historical events..."></textarea>
-      <div class="chips" id="suggestions"></div>
+      <div class="section-label">As-of Year</div>
+      <div class="year-row">
+        <input type="number" id="year-input" value="1922" min="1800" max="1963">
+        <span class="year-label">Target era</span>
+      </div>
     </div>
 
     <div>
-      <label>As-of year</label>
-      <input type="number" id="year" min="1850" max="2024" value="1920" />
+      <div class="section-label">Examples</div>
+      <button class="example-btn" onclick="setExample('Who led the labor movement in the 1920s?', 1922)">Who led the labor movement in the 1920s?</button>
+      <button class="example-btn" onclick="setExample('What was the state of aviation in 1919?', 1919)">What was the state of aviation in 1919?</button>
+      <button class="example-btn" onclick="setExample('Who was involved in the temperance movement in 1910?', 1910)">Who was involved in the temperance movement in 1910?</button>
+      <button class="example-btn" onclick="setExample('What happened during the railroad strikes of 1877?', 1877)">What happened during the railroad strikes of 1877?</button>
     </div>
 
-    <button class="run-btn" id="runBtn" onclick="runPipeline()">Run Pipeline</button>
+    <button class="run-btn" id="run-btn" onclick="runPipeline()">&#x25B6; Run Comparison</button>
 
-    <div class="metrics-card">
-      <div class="metrics-label">Eval Results (CAQA)</div>
-      <div class="metrics-stat">Hit@1: 59.1% vs 40.4% baseline</div>
-      <div class="metrics-sub">Full eval Hit@1: 59.1% vs 40.4% baseline<br>(2.5k passage demo subset)</div>
+    <div class="loading-box" id="loading-box">
+      <div class="loading-step" id="ls1">&#x25FD; Encoding query&hellip;</div>
+      <div class="loading-step" id="ls2">&#x25FD; Dual FAISS retrieval&hellip;</div>
+      <div class="loading-step" id="ls3">&#x25FD; MRAG temporal re-ranking&hellip;</div>
+      <div class="loading-step" id="ls4">&#x25FD; Generating answer&hellip;</div>
     </div>
 
-    <details class="collapsible">
-      <summary>How it works</summary>
-      <div class="how-steps">
-        <div class="how-step">
-          <div class="how-step-num">1</div>
-          <div>Fine-tuned Contriever retrieves top-k passages via FAISS semantic search</div>
+    <div class="answer-box" id="answer-box" style="display:none">
+      <div class="ans-hdr">&#x1F4AC; Generated Answer</div>
+      <div class="answer-text" id="answer-text"></div>
+      <div class="answer-meta" id="answer-meta"></div>
+    </div>
+
+    <div>
+      <div class="section-label">Eval Results (CAQA Full)</div>
+      <div class="metrics-card">
+        <div class="hit">59.1% Hit@1 <small>Time-Aware + MRAG vs 40.4% Baseline</small></div>
+        <div class="metrics-grid">
+          <div class="m-cell"><div class="m-val" style="color:var(--amber)">59.1%</div><div class="m-lbl">Hit@1 (Yours)</div></div>
+          <div class="m-cell"><div class="m-val">40.4%</div><div class="m-lbl">Hit@1 (Base)</div></div>
+          <div class="m-cell"><div class="m-val" style="color:var(--amber)">65.7%</div><div class="m-lbl">MRR@10 (Yours)</div></div>
+          <div class="m-cell"><div class="m-val">47.7%</div><div class="m-lbl">MRR@10 (Base)</div></div>
         </div>
-        <div class="how-step">
-          <div class="how-step-num">2</div>
-          <div>MRAG re-ranker fuses sliding-window MaxSim with temporal decay scoring</div>
-        </div>
-        <div class="how-step">
-          <div class="how-step-num">3</div>
-          <div>GPT-4o-mini generates an answer grounded only to the top-5 passages</div>
-        </div>
+      </div>
+    </div>
+
+    <details style="color:var(--muted);font-size:11px;line-height:1.7">
+      <summary style="cursor:pointer;color:var(--muted)">&#x25B8; How it works</summary>
+      <div style="margin-top:8px;padding:10px;background:var(--surface2);border-radius:6px">
+        <b style="color:var(--text)">Left panel</b> &mdash; Base Contriever retrieves semantically similar passages with zero temporal awareness.<br><br>
+        <b style="color:var(--amber)">Right panel</b> &mdash; Your fine-tuned model retrieves temporally anchored passages, then MRAG re-ranks using sliding-window MaxSim &times; temporal decay.<br><br>
+        <b>Amber border</b> = passage era matches your target year (&plusmn;5 yr). <b>Red border</b> = era mismatch. The contrast between panels directly shows your contribution.
       </div>
     </details>
 
-    <a class="github-link" href="https://github.com/manojarulmurugan/Time-Aware-Retrieval-Augmented-Generation" target="_blank" rel="noopener">
-      ↗ View on GitHub
-    </a>
+    <div style="color:var(--muted);font-size:10px;text-align:center">
+      <a href="https://github.com/manojarulmurugan/Time-Aware-Retrieval-Augmented-Generation" style="color:var(--muted);text-decoration:none" target="_blank">&#x2197; View on GitHub</a>
+    </div>
+
   </div>
 
-  <!-- ══ MIDDLE COLUMN ══ -->
-  <div class="mid-col">
-    <div id="statusBar" class="status-bar">
-      <div class="spinner"></div>
-      <span id="statusMsg">Retrieving...</span>
-    </div>
-    <div id="errorBar" class="error-bar">
-      Pipeline error — is the server running?
-    </div>
-
-    <!-- Retrieved passages -->
-    <div class="panel">
-      <div class="panel-header">
-        <span class="panel-title">📥 Retrieved Passages</span>
-        <span class="panel-subtitle">Top-k by semantic similarity (fine-tuned Contriever)</span>
-      </div>
-      <div id="retrievedList" class="passage-list">
-        <div class="empty-state">Run a query to see retrieved passages.</div>
-      </div>
-    </div>
-
-    <!-- Re-ranked passages -->
-    <div class="panel">
-      <div class="panel-header">
-        <span class="panel-title">⚖️ Re-ranked Passages</span>
-        <span class="panel-subtitle">MRAG: Sliding-Window MaxSim + temporal decay</span>
-      </div>
-      <div id="rerankedList" class="passage-list">
-        <div class="empty-state">Re-ranked results will appear here.</div>
-      </div>
-    </div>
-  </div>
-
-  <!-- ══ RIGHT COLUMN ══ -->
-  <div class="right-col">
-    <div class="answer-panel">
-      <div class="panel-header">
-        <span class="panel-title">💬 Generated Answer</span>
-      </div>
-      <div id="answerContent" class="answer-empty">
-        Run a query to generate an answer.
-      </div>
-      <div class="grounded-note">Grounded to top 5 passages only</div>
-      <div class="latency-badge" id="latencyBadge" style="display:none"></div>
+  <!-- RIGHT: Time-aware + MRAG results -->
+  <div class="panel">
+    <div class="panel-header time-hdr">&#x26A1; Time-Aware + MRAG Re-ranked <span style="font-weight:400;color:#665520">&mdash; your system</span></div>
+    <div class="panel-body" id="time-results">
+      <div class="placeholder">Run a query to see your system&rsquo;s output.<br>Fine-tuned Contriever + MRAG sliding-window temporal re-ranking.</div>
     </div>
   </div>
 
@@ -538,205 +305,129 @@
 
 <script>
 const API_BASE_URL = "";
+let lastLatency = 0;
 
-const SUGGESTIONS = [
-  "What were the major events of World War I in 1917?",
-  "Who led the labor movement in the 1920s?",
-  "What was the state of aviation as of 1919?",
+function setExample(q, y) {
+  document.getElementById('query-input').value = q;
+  document.getElementById('year-input').value = y;
+}
+
+const STEP_LABELS = [
+  'Encoding query…',
+  'Dual FAISS retrieval…',
+  'MRAG temporal re-ranking…',
+  'Generating answer…'
 ];
 
-// Populate suggestion chips
-const chips = document.getElementById("suggestions");
-SUGGESTIONS.forEach(q => {
-  const el = document.createElement("div");
-  el.className = "chip";
-  el.textContent = q.length > 45 ? q.slice(0, 44) + "…" : q;
-  el.title = q;
-  el.onclick = () => { document.getElementById("query").value = q; };
-  chips.appendChild(el);
-});
-
-// Loading phase simulation
-let _phaseTimer = null;
-function startLoadingPhases() {
-  const phases = [
-    [0,    "Retrieving…"],
-    [600,  "Re-ranking with temporal decay…"],
-    [1200, "Generating answer…"],
-  ];
-  phases.forEach(([delay, msg]) => {
-    const t = setTimeout(() => setStatus(msg), delay);
-    // Store so we can clear
+function resetSteps() {
+  STEP_LABELS.forEach((t, i) => {
+    const el = document.getElementById('ls' + (i + 1));
+    el.className = 'loading-step';
+    el.textContent = '◽ ' + t;
   });
 }
 
-function setStatus(msg) {
-  document.getElementById("statusBar").classList.add("visible");
-  document.getElementById("statusMsg").textContent = msg;
+function setStep(n, state) {
+  const el = document.getElementById('ls' + n);
+  const label = STEP_LABELS[n - 1];
+  if (state === 'active') { el.className = 'loading-step active pulsing'; el.textContent = '⏳ ' + label; }
+  if (state === 'done')   { el.className = 'loading-step done';           el.textContent = '✅ ' + label; }
 }
 
-function clearStatus() {
-  document.getElementById("statusBar").classList.remove("visible");
-}
-
-function showError() {
-  document.getElementById("errorBar").classList.add("visible");
-}
-
-function clearError() {
-  document.getElementById("errorBar").classList.remove("visible");
-}
-
-function showSkeletons(containerId, count = 5) {
-  const el = document.getElementById(containerId);
-  el.innerHTML = "";
-  for (let i = 0; i < count; i++) {
-    const sk = document.createElement("div");
-    sk.className = "skeleton skeleton-card";
-    el.appendChild(sk);
-  }
-}
-
-function renderPassageCard(p, rank, targetYear, showScore) {
-  const years = p.years_in_text || p._years || [];
-  const isMatch = years.includes(targetYear);
-
-  const card = document.createElement("div");
-  card.className = "pcard" + (isMatch ? " target-year-match" : "");
-  card.onclick = () => card.classList.toggle("expanded");
-
-  const score = showScore
-    ? (p.score !== undefined ? p.score : p.retrieval_score)
-    : null;
-
-  const yearTags = years.slice(0, 6).map(y =>
-    `<span class="year-tag">${y}</span>`
-  ).join("");
-
-  const preview = (p.text || "").slice(0, 200) + ((p.text || "").length > 200 ? "…" : "");
-
-  card.innerHTML = `
-    <div class="pcard-header">
-      <span class="rank-num">#${rank}</span>
-      <div class="year-tags">${yearTags || '<span style="font-size:10px;color:#555">no years found</span>'}</div>
-      ${score !== null ? `<span class="score-badge">${score.toFixed(4)}</span>` : ""}
-    </div>
-    <div class="pcard-text">${escHtml(preview)}</div>
-    <div class="pcard-full">${escHtml(p.text || "")}</div>
-  `;
-  return card;
-}
-
-function escHtml(str) {
-  return str
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;");
-}
-
-function extractYears(text) {
-  const re = /\b(1[5-9]\d{2}|20\d{2}|2100)\b/g;
-  const found = new Set();
-  let m;
-  while ((m = re.exec(text)) !== null) found.add(parseInt(m[1]));
-  return [...found].sort();
+function buildCard(p, targetYear) {
+  const hasYears = p.years_in_text && p.years_in_text.length > 0;
+  const isMatch  = hasYears && p.years_in_text.some(y => Math.abs(y - targetYear) <= 5);
+  const cls      = hasYears ? (isMatch ? 'temporal-match' : 'temporal-miss') : '';
+  const yearHTML = hasYears
+    ? p.years_in_text.map(y =>
+        '<span class="year-tag ' + (Math.abs(y - targetYear) <= 5 ? 'match' : '') + '">' + y + '</span>'
+      ).join('')
+    : '<span class="year-tag none">no years found</span>';
+  const badge = hasYears
+    ? '<span class="match-indicator ' + (isMatch ? 'yes' : 'no') + '">' + (isMatch ? '✓ Era match' : '✗ Era mismatch') + '</span>'
+    : '';
+  const excerpt = p.text.length > 220 ? p.text.slice(0, 220) + '…' : p.text;
+  return '<div class="passage-card ' + cls + '">' +
+    '<div class="card-top"><span class="card-rank">#' + p.rank + '</span><span class="card-score">' + p.score.toFixed(4) + '</span></div>' +
+    '<div class="year-tags">' + yearHTML + '</div>' +
+    '<div class="card-text">' + excerpt.replace(/</g,'&lt;') + '</div>' +
+    badge +
+    '</div>';
 }
 
 async function runPipeline() {
-  const query = document.getElementById("query").value.trim();
-  const year = parseInt(document.getElementById("year").value);
+  const query      = document.getElementById('query-input').value.trim();
+  const targetYear = parseInt(document.getElementById('year-input').value, 10);
+  if (!query) return;
 
-  if (!query) {
-    document.getElementById("query").focus();
+  const btn = document.getElementById('run-btn');
+  btn.disabled = true;
+  document.getElementById('loading-box').className = 'loading-box visible';
+  document.getElementById('answer-box').style.display = 'none';
+  document.getElementById('base-results').innerHTML = '';
+  document.getElementById('time-results').innerHTML = '';
+  resetSteps();
+
+  setStep(1, 'active');
+  await new Promise(r => setTimeout(r, 150));
+  setStep(1, 'done');
+  setStep(2, 'active');
+
+  let data;
+  try {
+    const resp = await fetch(API_BASE_URL + '/query', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ query: query, target_year: targetYear, top_k: 20, generate: true })
+    });
+    data = await resp.json();
+    lastLatency = data.latency_ms;
+  } catch (e) {
+    const msg = '<div class="placeholder" style="color:#ef4444">Error: ' + e.message + '</div>';
+    document.getElementById('base-results').innerHTML = msg;
+    document.getElementById('time-results').innerHTML = msg;
+    btn.disabled = false;
+    document.getElementById('loading-box').className = 'loading-box';
     return;
   }
 
-  const btn = document.getElementById("runBtn");
-  btn.disabled = true;
-  clearError();
-  setStatus("Retrieving…");
+  setStep(2, 'done');
+  setStep(3, 'active');
+  await new Promise(r => setTimeout(r, 100));
+  setStep(3, 'done');
 
-  // Staggered loading phase messages
-  const p1 = setTimeout(() => setStatus("Re-ranking with temporal decay…"), 600);
-  const p2 = setTimeout(() => setStatus("Generating answer…"), 1200);
+  // Render base results
+  const baseArr = data.base_results || [];
+  document.getElementById('base-results').innerHTML = baseArr.length
+    ? baseArr.map(p => buildCard(p, targetYear)).join('')
+    : '<div class="placeholder">No results returned.</div>';
 
-  showSkeletons("retrievedList", 5);
-  showSkeletons("rerankedList", 5);
-  document.getElementById("answerContent").className = "answer-empty";
-  document.getElementById("answerContent").textContent = "Generating…";
-  document.getElementById("latencyBadge").style.display = "none";
+  // Render time-aware + MRAG results
+  const timeArr = data.reranked || [];
+  document.getElementById('time-results').innerHTML = timeArr.length
+    ? timeArr.map(p => buildCard(p, targetYear)).join('')
+    : '<div class="placeholder">No results returned.</div>';
 
-  try {
-    const resp = await fetch(API_BASE_URL + "/query", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ query, target_year: year, top_k: 20, generate: true }),
-    });
+  setStep(4, 'active');
+  await new Promise(r => setTimeout(r, 80));
+  setStep(4, 'done');
 
-    clearTimeout(p1);
-    clearTimeout(p2);
-
-    if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
-    const data = await resp.json();
-
-    // Retrieved (raw FAISS order)
-    const retList = document.getElementById("retrievedList");
-    retList.innerHTML = "";
-    const topCandidates = (data.candidates || []).slice(0, 10);
-    topCandidates.forEach((p, i) => {
-      p._years = extractYears(p.text || "");
-      retList.appendChild(renderPassageCard(p, i + 1, year, true));
-    });
-    if (topCandidates.length === 0) {
-      retList.innerHTML = '<div class="empty-state">No passages retrieved.</div>';
-    }
-
-    // Re-ranked
-    const reList = document.getElementById("rerankedList");
-    reList.innerHTML = "";
-    (data.reranked || []).forEach((p, i) => {
-      reList.appendChild(renderPassageCard(p, p.final_rank || i + 1, year, true));
-    });
-    if ((data.reranked || []).length === 0) {
-      reList.innerHTML = '<div class="empty-state">No re-ranked results.</div>';
-    }
-
-    // Answer
-    const answerEl = document.getElementById("answerContent");
-    if (data.answer) {
-      answerEl.className = "answer-text";
-      answerEl.textContent = data.answer;
-    } else {
-      answerEl.className = "answer-empty";
-      answerEl.textContent =
-        "Generation requires GROQ_API_KEY.\nRetrieval pipeline above is fully functional.";
-    }
-
-    // Latency
-    const badge = document.getElementById("latencyBadge");
-    badge.style.display = "block";
-    badge.textContent = `Pipeline: ${(data.latency_ms / 1000).toFixed(1)}s`;
-
-    clearStatus();
-  } catch (err) {
-    clearTimeout(p1);
-    clearTimeout(p2);
-    clearStatus();
-    showError();
-    document.getElementById("retrievedList").innerHTML = '<div class="empty-state">Error loading results.</div>';
-    document.getElementById("rerankedList").innerHTML = '<div class="empty-state">Error loading results.</div>';
-    document.getElementById("answerContent").className = "answer-empty";
-    document.getElementById("answerContent").textContent = "";
-    console.error(err);
-  } finally {
-    btn.disabled = false;
+  const ansBox = document.getElementById('answer-box');
+  ansBox.style.display = 'block';
+  if (data.answer) {
+    document.getElementById('answer-text').textContent = data.answer;
+    document.getElementById('answer-meta').textContent = 'Grounded to top-5 MRAG passages · ' + lastLatency + 'ms';
+  } else {
+    document.getElementById('answer-text').innerHTML =
+      '<span class="no-key">Generation requires GROQ_API_KEY.\nRetrieval comparison above is fully functional.</span>';
+    document.getElementById('answer-meta').textContent = 'Pipeline: ' + lastLatency + 'ms';
   }
+
+  btn.disabled = false;
 }
 
-// Allow Enter (Ctrl/Cmd+Enter) to submit
-document.getElementById("query").addEventListener("keydown", e => {
-  if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) runPipeline();
+document.getElementById('query-input').addEventListener('keydown', function(e) {
+  if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) runPipeline();
 });
 </script>
 </body>
