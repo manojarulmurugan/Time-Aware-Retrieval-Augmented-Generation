@@ -5,429 +5,481 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Time-Aware RAG — Temporal Question Answering</title>
 <style>
-  :root {
-    --bg: #0d0d0d;
-    --surface: #161616;
-    --surface2: #1e1e1e;
-    --border: #2a2a2a;
-    --amber: #f5a623;
-    --amber-dim: rgba(245,166,35,0.12);
-    --green: #22c55e;
-    --green-dim: rgba(34,197,94,0.10);
-    --red: #ef4444;
-    --red-dim: rgba(239,68,68,0.10);
-    --text: #e8e8e8;
-    --muted: #666;
-    --tag-bg: #2a2a2a;
-  }
-  * { box-sizing: border-box; margin: 0; padding: 0; }
-  body { background: var(--bg); color: var(--text); font-family: 'Inter', system-ui, sans-serif; font-size: 13px; min-height: 100vh; }
+:root {
+  --bg:#0d0d0d; --surface:#161616; --surface2:#1e1e1e; --border:#2a2a2a;
+  --amber:#f5a623; --amber-dim:rgba(245,166,35,.12); --amber-border:rgba(245,166,35,.3);
+  --green:#22c55e; --green-dim:rgba(34,197,94,.10);
+  --red:#ef4444; --red-dim:rgba(239,68,68,.10);
+  --blue:#60a5fa; --blue-dim:rgba(96,165,250,.10);
+  --text:#e8e8e8; --muted:#666; --muted2:#444;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--bg);color:var(--text);font-family:'Inter',system-ui,sans-serif;font-size:13px;min-height:100vh;display:flex;flex-direction:column}
 
-  /* ── Header ── */
-  header {
-    background: var(--surface);
-    border-bottom: 1px solid var(--border);
-    padding: 12px 24px;
-    display: flex; align-items: center; justify-content: space-between;
-  }
-  .logo { font-size: 18px; font-weight: 700; color: var(--amber); letter-spacing: -0.3px; }
-  .logo span { color: var(--text); font-weight: 400; }
-  .header-meta { color: var(--muted); font-size: 12px; }
-  .badge {
-    display: inline-block; background: var(--amber-dim); color: var(--amber);
-    border: 1px solid rgba(245,166,35,0.3); border-radius: 4px;
-    padding: 2px 8px; font-size: 11px; font-weight: 600; margin-left: 8px;
-  }
+/* ── Header ── */
+header{background:var(--surface);border-bottom:1px solid var(--border);padding:10px 20px;display:flex;align-items:center;justify-content:space-between;flex-shrink:0}
+.logo{font-size:17px;font-weight:700;color:var(--amber)}
+.logo span{color:var(--text);font-weight:400}
+.hdr-right{display:flex;align-items:center;gap:12px;font-size:11px;color:var(--muted)}
+.badge{background:var(--amber-dim);color:var(--amber);border:1px solid var(--amber-border);border-radius:4px;padding:2px 8px;font-size:11px;font-weight:700}
 
-  /* ── Comparison banner ── */
-  .comparison-bar {
-    display: grid; grid-template-columns: 1fr auto 1fr;
-    background: var(--surface); border-bottom: 1px solid var(--border);
-    text-align: center; font-size: 11px; font-weight: 600; letter-spacing: 0.5px;
-  }
-  .cbar-base  { padding: 8px; color: var(--muted); border-right: 1px solid var(--border); }
-  .cbar-mid   { padding: 8px 24px; color: var(--muted); }
-  .cbar-time  { padding: 8px; color: var(--amber); border-left: 1px solid var(--border); }
+/* ── Comparison strip ── */
+.cmp-bar{display:grid;grid-template-columns:1fr 36px 1fr;background:var(--surface);border-bottom:1px solid var(--border);font-size:11px;font-weight:600;letter-spacing:.4px;text-align:center;flex-shrink:0}
+.cmp-base{padding:7px 10px;color:var(--muted);border-right:1px solid var(--border)}
+.cmp-vs{padding:7px 4px;color:var(--muted2);font-size:10px}
+.cmp-time{padding:7px 10px;color:var(--amber);border-left:1px solid var(--border)}
 
-  /* ── Main layout ── */
-  .layout {
-    display: grid;
-    grid-template-columns: 1fr 300px 1fr;
-    height: calc(100vh - 88px);
-    overflow: hidden;
-  }
+/* ── Layout ── */
+.layout{display:grid;grid-template-columns:1fr 310px 1fr;flex:1;overflow:hidden}
 
-  /* ── Panels ── */
-  .panel {
-    display: flex; flex-direction: column;
-    overflow: hidden; border-right: 1px solid var(--border);
-  }
-  .panel:last-child { border-right: none; }
-  .panel-header {
-    padding: 10px 14px;
-    background: var(--surface2);
-    border-bottom: 1px solid var(--border);
-    font-size: 11px; font-weight: 600; letter-spacing: 0.5px; text-transform: uppercase;
-    flex-shrink: 0;
-  }
-  .panel-header.base-hdr  { color: var(--muted); }
-  .panel-header.time-hdr  { color: var(--amber); }
-  .panel-body { flex: 1; overflow-y: auto; padding: 10px; }
+/* ── Result panels ── */
+.panel{display:flex;flex-direction:column;overflow:hidden;border-right:1px solid var(--border)}
+.panel:last-child{border-right:none}
+.panel-hdr{padding:8px 12px;background:var(--surface2);border-bottom:1px solid var(--border);font-size:10px;font-weight:700;letter-spacing:.5px;text-transform:uppercase;flex-shrink:0}
+.panel-hdr.base{color:var(--muted)}
+.panel-hdr.time{color:var(--amber)}
+.panel-body{flex:1;overflow-y:auto;padding:8px}
 
-  /* ── Center control panel ── */
-  .center-panel {
-    border-left: 1px solid var(--border);
-    border-right: 1px solid var(--border);
-    display: flex; flex-direction: column; overflow-y: auto;
-    padding: 16px 14px; gap: 14px; background: var(--surface);
-  }
-  .section-label {
-    font-size: 10px; font-weight: 600; text-transform: uppercase;
-    letter-spacing: 0.6px; color: var(--muted); margin-bottom: 6px;
-  }
-  textarea {
-    width: 100%; background: var(--surface2); border: 1px solid var(--border);
-    border-radius: 6px; color: var(--text); font-size: 13px; padding: 9px 10px;
-    resize: vertical; min-height: 72px; font-family: inherit; line-height: 1.5;
-    outline: none; transition: border-color .15s;
-  }
-  textarea:focus { border-color: var(--amber); }
-  .year-row { display: flex; align-items: center; gap: 8px; }
-  .year-row input[type=number] {
-    width: 80px; background: var(--surface2); border: 1px solid var(--border);
-    border-radius: 6px; color: var(--amber); font-size: 15px; font-weight: 700;
-    padding: 6px 10px; outline: none; text-align: center;
-    transition: border-color .15s;
-  }
-  .year-row input[type=number]:focus { border-color: var(--amber); }
-  .year-label { color: var(--muted); font-size: 12px; }
-  .run-btn {
-    width: 100%; padding: 11px; background: var(--amber); color: #000;
-    font-weight: 700; font-size: 14px; border: none; border-radius: 8px;
-    cursor: pointer; transition: opacity .15s, transform .1s;
-  }
-  .run-btn:hover { opacity: .9; }
-  .run-btn:active { transform: scale(.98); }
-  .run-btn:disabled { opacity: .4; cursor: not-allowed; }
+/* ── Center control panel ── */
+.ctrl{border-left:1px solid var(--border);border-right:1px solid var(--border);display:flex;flex-direction:column;overflow-y:auto;background:var(--surface)}
 
-  /* example queries */
-  .example-btn {
-    display: block; width: 100%; text-align: left;
-    background: var(--surface2); border: 1px solid var(--border);
-    border-radius: 6px; color: var(--muted); font-size: 11px;
-    padding: 6px 9px; cursor: pointer; margin-bottom: 5px;
-    transition: border-color .15s, color .15s;
-  }
-  .example-btn:hover { border-color: var(--amber); color: var(--text); }
+/* corpus guide */
+.guide{background:var(--blue-dim);border-bottom:1px solid rgba(96,165,250,.15);padding:10px 14px}
+.guide-title{font-size:10px;font-weight:700;color:var(--blue);text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px}
+.guide-body{font-size:11px;color:#8ab4f8;line-height:1.55}
+.guide-body b{color:var(--text)}
 
-  /* metrics card */
-  .metrics-card {
-    background: var(--amber-dim); border: 1px solid rgba(245,166,35,0.25);
-    border-radius: 8px; padding: 10px 12px;
-  }
-  .metrics-card .hit { font-size: 16px; font-weight: 700; color: var(--amber); }
-  .metrics-card .hit small { font-size: 10px; font-weight: 400; color: var(--muted); display: block; margin-top: 2px; }
-  .metrics-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-top: 8px; }
-  .m-cell { background: rgba(0,0,0,0.2); border-radius: 5px; padding: 5px 7px; }
-  .m-val { font-size: 12px; font-weight: 600; color: var(--text); }
-  .m-lbl { font-size: 10px; color: var(--muted); }
+/* year row */
+.year-row{display:flex;align-items:center;gap:8px;padding:10px 14px;border-bottom:1px solid var(--border);background:var(--surface2);flex-shrink:0}
+.year-label{font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;flex:1}
+input[type=number]{width:72px;background:var(--bg);border:1px solid var(--border);border-radius:5px;color:var(--amber);font-size:15px;font-weight:700;padding:5px 8px;outline:none;text-align:center;transition:border-color .15s}
+input[type=number]:focus{border-color:var(--amber)}
 
-  /* answer box */
-  .answer-box {
-    background: var(--green-dim); border: 1px solid rgba(34,197,94,0.2);
-    border-radius: 8px; padding: 10px 12px;
-  }
-  .answer-box .ans-hdr { font-size: 10px; font-weight: 600; color: var(--green); letter-spacing: 0.5px; text-transform: uppercase; margin-bottom: 6px; }
-  .answer-text { font-size: 12px; line-height: 1.6; color: var(--text); white-space: pre-wrap; }
-  .answer-meta { font-size: 10px; color: var(--muted); margin-top: 6px; }
-  .no-key { color: var(--muted); font-size: 11px; line-height: 1.5; font-style: italic; }
+/* era groups */
+.era-section{padding:10px 14px 4px}
+.era-label{font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.7px;color:var(--muted2);margin-bottom:6px;display:flex;align-items:center;gap:6px}
+.era-label::after{content:'';flex:1;height:1px;background:var(--border)}
+.query-grid{display:flex;flex-direction:column;gap:4px;margin-bottom:6px}
+.q-pill{width:100%;text-align:left;background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:7px 10px;cursor:pointer;transition:border-color .15s,background .15s;color:var(--text)}
+.q-pill:hover{border-color:var(--amber);background:var(--amber-dim)}
+.q-pill.active{border-color:var(--amber);background:var(--amber-dim)}
+.q-pill-top{display:flex;align-items:center;justify-content:space-between;margin-bottom:3px}
+.q-topic{font-size:10px;font-weight:700;color:var(--amber)}
+.q-year{font-size:10px;background:var(--border);border-radius:3px;padding:1px 5px;color:var(--muted)}
+.q-text{font-size:11px;color:#bbb;line-height:1.4}
 
-  /* loading */
-  .loading-box {
-    background: var(--surface2); border: 1px solid var(--border);
-    border-radius: 8px; padding: 10px 12px;
-    display: none;
-  }
-  .loading-box.visible { display: block; }
-  .loading-step { font-size: 11px; color: var(--muted); padding: 2px 0; }
-  .loading-step.active { color: var(--amber); }
-  .loading-step.done { color: var(--green); }
-  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.4} }
-  .pulsing { animation: pulse 1.2s infinite; }
+/* run button */
+.run-wrap{padding:10px 14px;border-top:1px solid var(--border);border-bottom:1px solid var(--border);flex-shrink:0}
+.run-btn{width:100%;padding:10px;background:var(--amber);color:#000;font-weight:700;font-size:13px;border:none;border-radius:7px;cursor:pointer;transition:opacity .15s,transform .1s}
+.run-btn:hover{opacity:.9}
+.run-btn:active{transform:scale(.98)}
+.run-btn:disabled{opacity:.35;cursor:not-allowed}
 
-  /* passage cards */
-  .passage-card {
-    background: var(--surface2); border: 1px solid var(--border);
-    border-radius: 8px; padding: 10px 12px; margin-bottom: 8px;
-    transition: border-color .15s;
-  }
-  .passage-card:hover { border-color: #3a3a3a; }
-  .passage-card.temporal-match {
-    border-left: 3px solid var(--amber);
-    background: linear-gradient(90deg, rgba(245,166,35,0.05) 0%, var(--surface2) 40%);
-  }
-  .passage-card.temporal-miss {
-    border-left: 3px solid var(--red);
-    background: linear-gradient(90deg, rgba(239,68,68,0.04) 0%, var(--surface2) 40%);
-  }
-  .card-top { display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px; }
-  .card-rank { font-size: 11px; font-weight: 700; color: var(--muted); }
-  .card-score { font-size: 11px; font-weight: 600; color: var(--muted); }
-  .year-tags { display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 6px; }
-  .year-tag {
-    background: var(--tag-bg); color: var(--muted); border-radius: 4px;
-    padding: 1px 6px; font-size: 10px; font-weight: 600;
-  }
-  .year-tag.match { background: var(--amber-dim); color: var(--amber); border: 1px solid rgba(245,166,35,0.3); }
-  .year-tag.none { font-style: italic; }
-  .card-text { font-size: 12px; line-height: 1.55; color: #aaa; }
-  .match-indicator {
-    font-size: 10px; font-weight: 600; margin-top: 6px; padding: 2px 6px;
-    border-radius: 4px; display: inline-block;
-  }
-  .match-indicator.yes { background: var(--amber-dim); color: var(--amber); }
-  .match-indicator.no  { background: var(--red-dim); color: var(--red); }
+/* custom query toggle */
+.custom-toggle{padding:8px 14px;border-bottom:1px solid var(--border)}
+.custom-btn{background:none;border:none;color:var(--muted);font-size:11px;cursor:pointer;padding:0;text-decoration:underline;text-underline-offset:2px}
+.custom-btn:hover{color:var(--text)}
+.custom-area{display:none;padding:8px 14px;border-bottom:1px solid var(--border)}
+.custom-area.open{display:block}
+textarea{width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:12px;padding:8px 10px;resize:vertical;min-height:60px;font-family:inherit;line-height:1.5;outline:none;transition:border-color .15s}
+textarea:focus{border-color:var(--amber)}
+.custom-hint{font-size:10px;color:var(--muted);margin-top:4px;line-height:1.5}
 
-  /* empty / placeholder */
-  .placeholder {
-    color: var(--muted); font-size: 12px; text-align: center;
-    padding: 40px 20px; line-height: 1.7;
-  }
+/* loading */
+.loading-box{padding:10px 14px;display:none}
+.loading-box.on{display:block}
+.ls{font-size:11px;color:var(--muted);padding:2px 0}
+.ls.active{color:var(--amber)}
+.ls.done{color:var(--green)}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
+.pulsing{animation:pulse 1.2s infinite}
 
-  /* scrollbar */
-  ::-webkit-scrollbar { width: 5px; }
-  ::-webkit-scrollbar-track { background: transparent; }
-  ::-webkit-scrollbar-thumb { background: #2a2a2a; border-radius: 3px; }
+/* answer */
+.answer-box{margin:10px 14px;background:var(--green-dim);border:1px solid rgba(34,197,94,.2);border-radius:7px;padding:10px 12px;display:none}
+.answer-box.on{display:block}
+.ans-hdr{font-size:10px;font-weight:700;color:var(--green);text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px}
+.ans-text{font-size:12px;line-height:1.6;color:var(--text);white-space:pre-wrap}
+.ans-meta{font-size:10px;color:var(--muted);margin-top:5px}
+.no-key{color:var(--muted);font-style:italic;font-size:11px}
+
+/* metrics */
+.metrics{padding:10px 14px 14px}
+.met-card{background:var(--amber-dim);border:1px solid var(--amber-border);border-radius:7px;padding:10px 12px}
+.met-hit{font-size:15px;font-weight:700;color:var(--amber)}
+.met-sub{font-size:10px;color:var(--muted);margin-top:2px}
+.met-grid{display:grid;grid-template-columns:1fr 1fr;gap:5px;margin-top:8px}
+.m-cell{background:rgba(0,0,0,.2);border-radius:5px;padding:5px 7px}
+.m-val{font-size:12px;font-weight:600}
+.m-lbl{font-size:10px;color:var(--muted)}
+
+/* passage cards */
+.card{background:var(--surface2);border:1px solid var(--border);border-radius:7px;padding:9px 11px;margin-bottom:7px;transition:border-color .15s}
+.card:hover{border-color:#3a3a3a}
+.card.match{border-left:3px solid var(--amber);background:linear-gradient(90deg,rgba(245,166,35,.05),var(--surface2) 40%)}
+.card.miss{border-left:3px solid var(--red);background:linear-gradient(90deg,rgba(239,68,68,.04),var(--surface2) 40%)}
+.card-top{display:flex;align-items:center;justify-content:space-between;margin-bottom:5px}
+.card-rank{font-size:11px;font-weight:700;color:var(--muted)}
+.card-score{font-size:11px;color:var(--muted)}
+.year-tags{display:flex;flex-wrap:wrap;gap:3px;margin-bottom:5px}
+.ytag{background:var(--border);color:var(--muted);border-radius:3px;padding:1px 5px;font-size:10px;font-weight:600}
+.ytag.hit{background:var(--amber-dim);color:var(--amber);border:1px solid var(--amber-border)}
+.ytag.none{font-style:italic}
+.card-text{font-size:11px;line-height:1.5;color:#999}
+.era-badge{font-size:10px;font-weight:600;margin-top:5px;padding:2px 6px;border-radius:4px;display:inline-block}
+.era-badge.yes{background:var(--amber-dim);color:var(--amber)}
+.era-badge.no{background:var(--red-dim);color:var(--red)}
+
+.placeholder{color:var(--muted);font-size:12px;text-align:center;padding:40px 16px;line-height:1.7}
+::-webkit-scrollbar{width:4px}
+::-webkit-scrollbar-track{background:transparent}
+::-webkit-scrollbar-thumb{background:#2a2a2a;border-radius:3px}
 </style>
 </head>
 <body>
 
 <header>
   <div class="logo">&#x23F1; Time-Aware <span>RAG</span></div>
-  <div class="header-meta">
-    ChroniclingAmericaQA &middot; 12,695 passages
+  <div class="hdr-right">
+    <span>ChroniclingAmericaQA &middot; 12,695 passages &middot; 1800&ndash;1963</span>
     <span class="badge">59.1% Hit@1</span>
   </div>
 </header>
 
-<div class="comparison-bar">
-  <div class="cbar-base">&#x1F535; BASELINE &mdash; facebook/contriever-msmarco</div>
-  <div class="cbar-mid">vs</div>
-  <div class="cbar-time">&#x26A1; YOUR SYSTEM &mdash; Time-Aware Contriever + MRAG</div>
+<div class="cmp-bar">
+  <div class="cmp-base">&#x1F535; BASELINE &mdash; facebook/contriever-msmarco</div>
+  <div class="cmp-vs">vs</div>
+  <div class="cmp-time">&#x26A1; YOUR SYSTEM &mdash; Time-Aware Contriever + MRAG</div>
 </div>
 
 <div class="layout">
 
-  <!-- LEFT: Base Contriever results -->
+  <!-- LEFT: Base results -->
   <div class="panel">
-    <div class="panel-header base-hdr">&#x1F4E5; Base Contriever Retrieval <span style="font-weight:400;color:#444">&mdash; no temporal awareness</span></div>
+    <div class="panel-hdr base">&#x1F4E5; Base Contriever &mdash; no temporal awareness</div>
     <div class="panel-body" id="base-results">
-      <div class="placeholder">Run a query to see baseline retrieval.<br>Standard Contriever &mdash; semantically similar but temporally blind.</div>
+      <div class="placeholder">Select a query from the center panel.<br><br>
+        The base model returns semantically similar passages<br>with no regard for the target year.</div>
     </div>
   </div>
 
   <!-- CENTER: Controls -->
-  <div class="center-panel">
+  <div class="ctrl">
 
-    <div>
-      <div class="section-label">Query</div>
-      <textarea id="query-input" placeholder="Ask a time-sensitive question about American history&#x2026;">Who led the labor movement in the 1920s?</textarea>
-    </div>
-
-    <div>
-      <div class="section-label">As-of Year</div>
-      <div class="year-row">
-        <input type="number" id="year-input" value="1922" min="1800" max="1963">
-        <span class="year-label">Target era</span>
+    <!-- Corpus guide -->
+    <div class="guide">
+      <div class="guide-title">&#x1F4DA; Corpus Guide</div>
+      <div class="guide-body">
+        <b>Dataset:</b> Chronicling America &mdash; historic US newspapers (1800&ndash;1963)<br>
+        <b>Query style:</b> Ask specific factual questions about named people, events, or policies<br>
+        <b>Works best:</b> <i>Who, What, Which</i> questions &mdash; not broad &ldquo;how did X develop&rdquo;<br>
+        <b>Year matters:</b> The same question yields different answers across eras
       </div>
     </div>
 
-    <div>
-      <div class="section-label">Examples</div>
-      <button class="example-btn" onclick="setExample('Who led the labor movement in the 1920s?', 1922)">Who led the labor movement in the 1920s?</button>
-      <button class="example-btn" onclick="setExample('What was the state of aviation in 1919?', 1919)">What was the state of aviation in 1919?</button>
-      <button class="example-btn" onclick="setExample('Who was involved in the temperance movement in 1910?', 1910)">Who was involved in the temperance movement in 1910?</button>
-      <button class="example-btn" onclick="setExample('What happened during the railroad strikes of 1877?', 1877)">What happened during the railroad strikes of 1877?</button>
+    <!-- Year selector -->
+    <div class="year-row">
+      <span class="year-label">As-of Year</span>
+      <input type="number" id="year-input" value="1808" min="1800" max="1963">
     </div>
 
-    <button class="run-btn" id="run-btn" onclick="runPipeline()">&#x25B6; Run Comparison</button>
+    <!-- Pre-validated query gallery -->
+    <div class="era-section">
+      <div class="era-label">Founding Era (1800&ndash;1815)</div>
+      <div class="query-grid">
+        <button class="q-pill" onclick="pick(this,'What country did Spain transfer Louisiana to in 1800?',1800)">
+          <div class="q-pill-top"><span class="q-topic">Louisiana Purchase</span><span class="q-year">1800</span></div>
+          <div class="q-text">What country did Spain transfer Louisiana to in 1800?</div>
+        </button>
+        <button class="q-pill" onclick="pick(this,'Who was in possession of East and West Florida in 1800?',1800)">
+          <div class="q-pill-top"><span class="q-topic">Territorial Control</span><span class="q-year">1800</span></div>
+          <div class="q-text">Who was in possession of East and West Florida in 1800?</div>
+        </button>
+        <button class="q-pill" onclick="pick(this,'Who was the president of the United States in 1808?',1808)">
+          <div class="q-pill-top"><span class="q-topic">Presidency</span><span class="q-year">1808</span></div>
+          <div class="q-text">Who was the president of the United States in 1808?</div>
+        </button>
+        <button class="q-pill" onclick="pick(this,'Who did Dewitt Clinton come close to fighting in 1808?',1808)">
+          <div class="q-pill-top"><span class="q-topic">Political Duels</span><span class="q-year">1808</span></div>
+          <div class="q-text">Who did Dewitt Clinton come close to fighting in 1808?</div>
+        </button>
+        <button class="q-pill" onclick="pick(this,'Who did political events introduce the house of in 1813?',1813)">
+          <div class="q-pill-top"><span class="q-topic">Banking &amp; Finance</span><span class="q-year">1813</span></div>
+          <div class="q-text">Who did political events introduce the house of in 1813?</div>
+        </button>
+      </div>
 
+      <div class="era-label">New Nation (1816&ndash;1845)</div>
+      <div class="query-grid">
+        <button class="q-pill" onclick="pick(this,'Which state supported the Tariff of 1816?',1816)">
+          <div class="q-pill-top"><span class="q-topic">Trade Policy</span><span class="q-year">1816</span></div>
+          <div class="q-text">Which state supported the Tariff of 1816?</div>
+        </button>
+        <button class="q-pill" onclick="pick(this,'Who did General Jackson fight and kill in 1816?',1816)">
+          <div class="q-pill-top"><span class="q-topic">Jackson&rsquo;s Duel</span><span class="q-year">1816</span></div>
+          <div class="q-text">Who did General Jackson fight and kill in 1816?</div>
+        </button>
+        <button class="q-pill" onclick="pick(this,'In what state did the Whigs claim a great gain over the vote of 1832?',1832)">
+          <div class="q-pill-top"><span class="q-topic">Whig Party</span><span class="q-year">1832</span></div>
+          <div class="q-text">In what state did the Whigs claim a great gain over the vote of 1832?</div>
+        </button>
+        <button class="q-pill" onclick="pick(this,'Which country signed a treaty with England in 1833 for suppression of the slave trade?',1833)">
+          <div class="q-pill-top"><span class="q-topic">Abolition</span><span class="q-year">1833</span></div>
+          <div class="q-text">Which country signed a treaty with England in 1833 for suppression of the slave trade?</div>
+        </button>
+        <button class="q-pill" onclick="pick(this,'Who was elected president of the United States in 1844?',1844)">
+          <div class="q-pill-top"><span class="q-topic">Presidential Election</span><span class="q-year">1844</span></div>
+          <div class="q-text">Who was elected president of the United States in 1844?</div>
+        </button>
+      </div>
+
+      <div class="era-label">Antebellum &amp; Growth (1841&ndash;1860)</div>
+      <div class="query-grid">
+        <button class="q-pill" onclick="pick(this,'How many mission stations were there in Africa in 1841?',1841)">
+          <div class="q-pill-top"><span class="q-topic">Global Missions</span><span class="q-year">1841</span></div>
+          <div class="q-text">How many mission stations were there in Africa in 1841?</div>
+        </button>
+        <button class="q-pill" onclick="pick(this,'What was the population of New York City in 1850?',1850)">
+          <div class="q-pill-top"><span class="q-topic">Urban Growth</span><span class="q-year">1850</span></div>
+          <div class="q-text">What was the population of New York City in 1850?</div>
+        </button>
+        <button class="q-pill" onclick="pick(this,'What was the state of the abolition movement in 1850?',1850)">
+          <div class="q-pill-top"><span class="q-topic">Abolition Movement</span><span class="q-year">1850</span></div>
+          <div class="q-text">What was the state of the abolition movement in 1850?</div>
+        </button>
+      </div>
+
+      <div class="era-label">Civil War &amp; Reconstruction (1861&ndash;1875)</div>
+      <div class="query-grid">
+        <button class="q-pill" onclick="pick(this,'How did Abraham Lincoln respond to Southern secession in 1861?',1861)">
+          <div class="q-pill-top"><span class="q-topic">Civil War</span><span class="q-year">1861</span></div>
+          <div class="q-text">How did Abraham Lincoln respond to Southern secession in 1861?</div>
+        </button>
+        <button class="q-pill" onclick="pick(this,'How did the telegraph change news reporting in 1870?',1870)">
+          <div class="q-pill-top"><span class="q-topic">Technology &amp; Media</span><span class="q-year">1870</span></div>
+          <div class="q-text">How did the telegraph change news reporting in 1870?</div>
+        </button>
+        <button class="q-pill" onclick="pick(this,'What was the Homestead Act and how did it affect settlers in 1870?',1870)">
+          <div class="q-pill-top"><span class="q-topic">Westward Expansion</span><span class="q-year">1870</span></div>
+          <div class="q-text">What was the Homestead Act and how did it affect settlers in 1870?</div>
+        </button>
+      </div>
+
+      <div class="era-label">Gilded Age (1875&ndash;1900)</div>
+      <div class="query-grid">
+        <button class="q-pill" onclick="pick(this,'How did railroads transform commerce and travel in the 1870s?',1875)">
+          <div class="q-pill-top"><span class="q-topic">Railroad Expansion</span><span class="q-year">1875</span></div>
+          <div class="q-text">How did railroads transform commerce and travel in the 1870s?</div>
+        </button>
+        <button class="q-pill" onclick="pick(this,'Who was president of the United States in 1880?',1880)">
+          <div class="q-pill-top"><span class="q-topic">Presidency</span><span class="q-year">1880</span></div>
+          <div class="q-text">Who was president of the United States in 1880?</div>
+        </button>
+        <button class="q-pill" onclick="pick(this,'What were the terms of peace ending the Spanish-American War in 1898?',1898)">
+          <div class="q-pill-top"><span class="q-topic">Spanish-American War</span><span class="q-year">1898</span></div>
+          <div class="q-text">What were the terms of peace ending the Spanish-American War in 1898?</div>
+        </button>
+        <button class="q-pill" onclick="pick(this,'What role did the Navy play in the Spanish-American War in 1898?',1898)">
+          <div class="q-pill-top"><span class="q-topic">Naval History</span><span class="q-year">1898</span></div>
+          <div class="q-text">What role did the Navy play in the Spanish-American War in 1898?</div>
+        </button>
+      </div>
+    </div>
+
+    <!-- Run button -->
+    <div class="run-wrap">
+      <button class="run-btn" id="run-btn" onclick="runPipeline()">&#x25B6; Run Comparison</button>
+    </div>
+
+    <!-- Custom query toggle -->
+    <div class="custom-toggle">
+      <button class="custom-btn" onclick="toggleCustom()">&#x270F; Try your own query</button>
+    </div>
+    <div class="custom-area" id="custom-area">
+      <textarea id="query-input" placeholder="Ask a specific factual question about American history (1800–1963)&#x0A;e.g. &quot;Who was governor of Ohio in 1820?&quot;&#x0A;e.g. &quot;What was the price of cotton in 1860?&quot;"></textarea>
+      <div class="custom-hint">
+        &#x26A0; Free queries depend on corpus coverage.<br>
+        Best format: <i>Who / What / Which</i> + specific named entity + year.<br>
+        Corpus: American newspapers 1800&ndash;1963.
+      </div>
+    </div>
+
+    <!-- Loading -->
     <div class="loading-box" id="loading-box">
-      <div class="loading-step" id="ls1">&#x25FD; Encoding query&hellip;</div>
-      <div class="loading-step" id="ls2">&#x25FD; Dual FAISS retrieval&hellip;</div>
-      <div class="loading-step" id="ls3">&#x25FD; MRAG temporal re-ranking&hellip;</div>
-      <div class="loading-step" id="ls4">&#x25FD; Generating answer&hellip;</div>
+      <div class="ls" id="ls1">&#x25FD; Encoding query&hellip;</div>
+      <div class="ls" id="ls2">&#x25FD; Dual FAISS retrieval&hellip;</div>
+      <div class="ls" id="ls3">&#x25FD; MRAG temporal re-ranking&hellip;</div>
+      <div class="ls" id="ls4">&#x25FD; Generating answer&hellip;</div>
     </div>
 
-    <div class="answer-box" id="answer-box" style="display:none">
+    <!-- Answer -->
+    <div class="answer-box" id="answer-box">
       <div class="ans-hdr">&#x1F4AC; Generated Answer</div>
-      <div class="answer-text" id="answer-text"></div>
-      <div class="answer-meta" id="answer-meta"></div>
+      <div class="ans-text" id="answer-text"></div>
+      <div class="ans-meta" id="answer-meta"></div>
     </div>
 
-    <div>
-      <div class="section-label">Eval Results (CAQA Full)</div>
-      <div class="metrics-card">
-        <div class="hit">59.1% Hit@1 <small>Time-Aware + MRAG vs 40.4% Baseline</small></div>
-        <div class="metrics-grid">
+    <!-- Metrics -->
+    <div class="metrics">
+      <div class="met-card">
+        <div class="met-hit">59.1% Hit@1</div>
+        <div class="met-sub">Time-Aware + MRAG vs 40.4% Baseline</div>
+        <div class="met-grid">
           <div class="m-cell"><div class="m-val" style="color:var(--amber)">59.1%</div><div class="m-lbl">Hit@1 (Yours)</div></div>
           <div class="m-cell"><div class="m-val">40.4%</div><div class="m-lbl">Hit@1 (Base)</div></div>
           <div class="m-cell"><div class="m-val" style="color:var(--amber)">65.7%</div><div class="m-lbl">MRR@10 (Yours)</div></div>
           <div class="m-cell"><div class="m-val">47.7%</div><div class="m-lbl">MRR@10 (Base)</div></div>
         </div>
       </div>
-    </div>
-
-    <details style="color:var(--muted);font-size:11px;line-height:1.7">
-      <summary style="cursor:pointer;color:var(--muted)">&#x25B8; How it works</summary>
-      <div style="margin-top:8px;padding:10px;background:var(--surface2);border-radius:6px">
-        <b style="color:var(--text)">Left panel</b> &mdash; Base Contriever retrieves semantically similar passages with zero temporal awareness.<br><br>
-        <b style="color:var(--amber)">Right panel</b> &mdash; Your fine-tuned model retrieves temporally anchored passages, then MRAG re-ranks using sliding-window MaxSim &times; temporal decay.<br><br>
-        <b>Amber border</b> = passage era matches your target year (&plusmn;5 yr). <b>Red border</b> = era mismatch. The contrast between panels directly shows your contribution.
+      <div style="text-align:center;margin-top:8px">
+        <a href="https://github.com/manojarulmurugan/Time-Aware-Retrieval-Augmented-Generation" style="color:var(--muted);font-size:10px;text-decoration:none" target="_blank">&#x2197; GitHub</a>
       </div>
-    </details>
-
-    <div style="color:var(--muted);font-size:10px;text-align:center">
-      <a href="https://github.com/manojarulmurugan/Time-Aware-Retrieval-Augmented-Generation" style="color:var(--muted);text-decoration:none" target="_blank">&#x2197; View on GitHub</a>
     </div>
 
   </div>
 
-  <!-- RIGHT: Time-aware + MRAG results -->
+  <!-- RIGHT: Time-aware + MRAG -->
   <div class="panel">
-    <div class="panel-header time-hdr">&#x26A1; Time-Aware + MRAG Re-ranked <span style="font-weight:400;color:#665520">&mdash; your system</span></div>
+    <div class="panel-hdr time">&#x26A1; Time-Aware + MRAG Re-ranked &mdash; your system</div>
     <div class="panel-body" id="time-results">
-      <div class="placeholder">Run a query to see your system&rsquo;s output.<br>Fine-tuned Contriever + MRAG sliding-window temporal re-ranking.</div>
+      <div class="placeholder">Select a query from the center panel.<br><br>
+        Fine-tuned Contriever finds era-anchored passages,<br>then MRAG re-ranks by temporal proximity.</div>
     </div>
   </div>
 
 </div>
 
 <script>
-const API_BASE_URL = "";
-let lastLatency = 0;
+const API = "";
+let activeYear = 1808;
+let activeQuery = "";
+let latency = 0;
 
-function setExample(q, y) {
-  document.getElementById('query-input').value = q;
-  document.getElementById('year-input').value = y;
+const STEPS = ["Encoding query…","Dual FAISS retrieval…","MRAG temporal re-ranking…","Generating answer…"];
+
+function pick(btn, q, y) {
+  document.querySelectorAll(".q-pill").forEach(b => b.classList.remove("active"));
+  btn.classList.add("active");
+  activeQuery = q;
+  activeYear = y;
+  document.getElementById("year-input").value = y;
+  // Clear custom textarea
+  const ta = document.getElementById("query-input");
+  if (ta) ta.value = "";
+  runPipeline();
 }
 
-const STEP_LABELS = [
-  'Encoding query…',
-  'Dual FAISS retrieval…',
-  'MRAG temporal re-ranking…',
-  'Generating answer…'
-];
+function toggleCustom() {
+  const a = document.getElementById("custom-area");
+  a.classList.toggle("open");
+  if (a.classList.contains("open")) document.getElementById("query-input").focus();
+}
 
 function resetSteps() {
-  STEP_LABELS.forEach((t, i) => {
-    const el = document.getElementById('ls' + (i + 1));
-    el.className = 'loading-step';
-    el.textContent = '◽ ' + t;
+  STEPS.forEach((t, i) => {
+    const el = document.getElementById("ls" + (i+1));
+    el.className = "ls";
+    el.textContent = "◽ " + t;
   });
 }
-
 function setStep(n, state) {
-  const el = document.getElementById('ls' + n);
-  const label = STEP_LABELS[n - 1];
-  if (state === 'active') { el.className = 'loading-step active pulsing'; el.textContent = '⏳ ' + label; }
-  if (state === 'done')   { el.className = 'loading-step done';           el.textContent = '✅ ' + label; }
+  const el = document.getElementById("ls" + n);
+  const t = STEPS[n-1];
+  if (state === "active") { el.className = "ls active pulsing"; el.textContent = "⏳ " + t; }
+  if (state === "done")   { el.className = "ls done";           el.textContent = "✅ " + t; }
 }
 
 function buildCard(p, targetYear) {
   const hasYears = p.years_in_text && p.years_in_text.length > 0;
   const isMatch  = hasYears && p.years_in_text.some(y => Math.abs(y - targetYear) <= 5);
-  const cls      = hasYears ? (isMatch ? 'temporal-match' : 'temporal-miss') : '';
-  const yearHTML = hasYears
-    ? p.years_in_text.map(y =>
-        '<span class="year-tag ' + (Math.abs(y - targetYear) <= 5 ? 'match' : '') + '">' + y + '</span>'
-      ).join('')
-    : '<span class="year-tag none">no years found</span>';
+  const cls = hasYears ? (isMatch ? "match" : "miss") : "";
+  const ytags = hasYears
+    ? p.years_in_text.map(y => '<span class="ytag ' + (Math.abs(y-targetYear)<=5?"hit":"") + '">' + y + '</span>').join("")
+    : '<span class="ytag none">no years found</span>';
   const badge = hasYears
-    ? '<span class="match-indicator ' + (isMatch ? 'yes' : 'no') + '">' + (isMatch ? '✓ Era match' : '✗ Era mismatch') + '</span>'
-    : '';
-  const excerpt = p.text.length > 220 ? p.text.slice(0, 220) + '…' : p.text;
-  return '<div class="passage-card ' + cls + '">' +
+    ? '<span class="era-badge ' + (isMatch?"yes":"no") + '">' + (isMatch?"✓ Era match":"✗ Era mismatch") + '</span>'
+    : "";
+  const excerpt = p.text.length > 230 ? p.text.slice(0,230) + "…" : p.text;
+  return '<div class="card ' + cls + '">' +
     '<div class="card-top"><span class="card-rank">#' + p.rank + '</span><span class="card-score">' + p.score.toFixed(4) + '</span></div>' +
-    '<div class="year-tags">' + yearHTML + '</div>' +
-    '<div class="card-text">' + excerpt.replace(/</g,'&lt;') + '</div>' +
-    badge +
-    '</div>';
+    '<div class="year-tags">' + ytags + '</div>' +
+    '<div class="card-text">' + excerpt.replace(/</g,"&lt;") + '</div>' +
+    badge + '</div>';
 }
 
 async function runPipeline() {
-  const query      = document.getElementById('query-input').value.trim();
-  const targetYear = parseInt(document.getElementById('year-input').value, 10);
+  // Resolve query: custom textarea overrides pill selection
+  const ta = document.getElementById("query-input");
+  const customQ = ta ? ta.value.trim() : "";
+  const query = customQ || activeQuery;
+  const year  = parseInt(document.getElementById("year-input").value, 10) || activeYear;
   if (!query) return;
 
-  const btn = document.getElementById('run-btn');
+  activeQuery = query;
+  activeYear  = year;
+
+  const btn = document.getElementById("run-btn");
   btn.disabled = true;
-  document.getElementById('loading-box').className = 'loading-box visible';
-  document.getElementById('answer-box').style.display = 'none';
-  document.getElementById('base-results').innerHTML = '';
-  document.getElementById('time-results').innerHTML = '';
+  document.getElementById("loading-box").className = "loading-box on";
+  const ansBox = document.getElementById("answer-box");
+  ansBox.className = "answer-box";
+  document.getElementById("base-results").innerHTML = "";
+  document.getElementById("time-results").innerHTML = "";
   resetSteps();
 
-  setStep(1, 'active');
-  await new Promise(r => setTimeout(r, 150));
-  setStep(1, 'done');
-  setStep(2, 'active');
+  setStep(1, "active");
+  await new Promise(r => setTimeout(r, 120));
+  setStep(1, "done"); setStep(2, "active");
 
   let data;
   try {
-    const resp = await fetch(API_BASE_URL + '/query', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ query: query, target_year: targetYear, top_k: 20, generate: true })
+    const resp = await fetch(API + "/query", {
+      method: "POST",
+      headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({query, target_year: year, top_k: 20, generate: true})
     });
     data = await resp.json();
-    lastLatency = data.latency_ms;
-  } catch (e) {
+    latency = data.latency_ms;
+  } catch(e) {
     const msg = '<div class="placeholder" style="color:#ef4444">Error: ' + e.message + '</div>';
-    document.getElementById('base-results').innerHTML = msg;
-    document.getElementById('time-results').innerHTML = msg;
+    document.getElementById("base-results").innerHTML = msg;
+    document.getElementById("time-results").innerHTML = msg;
     btn.disabled = false;
-    document.getElementById('loading-box').className = 'loading-box';
+    document.getElementById("loading-box").className = "loading-box";
     return;
   }
 
-  setStep(2, 'done');
-  setStep(3, 'active');
-  await new Promise(r => setTimeout(r, 100));
-  setStep(3, 'done');
-
-  // Render base results
-  const baseArr = data.base_results || [];
-  document.getElementById('base-results').innerHTML = baseArr.length
-    ? baseArr.map(p => buildCard(p, targetYear)).join('')
-    : '<div class="placeholder">No results returned.</div>';
-
-  // Render time-aware + MRAG results
-  const timeArr = data.reranked || [];
-  document.getElementById('time-results').innerHTML = timeArr.length
-    ? timeArr.map(p => buildCard(p, targetYear)).join('')
-    : '<div class="placeholder">No results returned.</div>';
-
-  setStep(4, 'active');
+  setStep(2, "done"); setStep(3, "active");
   await new Promise(r => setTimeout(r, 80));
-  setStep(4, 'done');
+  setStep(3, "done");
 
-  const ansBox = document.getElementById('answer-box');
-  ansBox.style.display = 'block';
+  document.getElementById("base-results").innerHTML =
+    (data.base_results||[]).length
+      ? (data.base_results).map(p => buildCard(p, year)).join("")
+      : '<div class="placeholder">No results.</div>';
+
+  document.getElementById("time-results").innerHTML =
+    (data.reranked||[]).length
+      ? (data.reranked).map(p => buildCard(p, year)).join("")
+      : '<div class="placeholder">No results.</div>';
+
+  setStep(4, "active");
+  await new Promise(r => setTimeout(r, 60));
+  setStep(4, "done");
+
+  ansBox.className = "answer-box on";
   if (data.answer) {
-    document.getElementById('answer-text').textContent = data.answer;
-    document.getElementById('answer-meta').textContent = 'Grounded to top-5 MRAG passages · ' + lastLatency + 'ms';
+    document.getElementById("answer-text").textContent = data.answer;
+    document.getElementById("answer-meta").textContent = "Grounded to top-5 MRAG passages · " + latency + "ms";
   } else {
-    document.getElementById('answer-text').innerHTML =
-      '<span class="no-key">Generation requires GROQ_API_KEY.\nRetrieval comparison above is fully functional.</span>';
-    document.getElementById('answer-meta').textContent = 'Pipeline: ' + lastLatency + 'ms';
+    document.getElementById("answer-text").innerHTML = '<span class="no-key">Generation requires GROQ_API_KEY.\nRetrieval comparison above is fully functional.</span>';
+    document.getElementById("answer-meta").textContent = "Pipeline: " + latency + "ms";
   }
 
   btn.disabled = false;
 }
 
-document.getElementById('query-input').addEventListener('keydown', function(e) {
-  if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) runPipeline();
+document.addEventListener("keydown", function(e) {
+  if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) runPipeline();
 });
 </script>
 </body>
