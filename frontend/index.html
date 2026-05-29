@@ -108,7 +108,7 @@ input, textarea { font-family: inherit; }
 .q-card-top { display: flex; align-items: center; justify-content: space-between; margin-bottom: 5px; }
 .q-topic { font-size: 10px; font-weight: 700; color: var(--amber); text-transform: uppercase; letter-spacing: .5px; }
 .q-year  { font-size: 11px; font-weight: 700; color: var(--text3); background: var(--surface3); border-radius: 3px; padding: 1px 6px; }
-.q-text  { font-size: 12px; color: var(--text2); line-height: 1.4; }
+.q-text  { font-size: 13px; color: var(--text2); line-height: 1.45; }
 
 /* custom textarea (below era cards) */
 .custom-divider {
@@ -128,14 +128,13 @@ textarea {
 textarea:focus { border-color: var(--amber); }
 textarea::placeholder { color: var(--text3); }
 .custom-note {
-  margin-top: 7px; font-size: 11px; color: var(--text3); line-height: 1.55;
+  margin-top: 9px; font-size: 13px; color: var(--text2); line-height: 1.65;
 }
-.custom-note strong { color: var(--text2); }
 
 /* Run row */
 .run-row { display: flex; align-items: center; gap: 12px; margin-top: 18px; }
 .year-wrap { display: flex; align-items: center; gap: 9px; }
-.year-lbl  { font-size: 12px; color: var(--text3); }
+.year-lbl  { font-size: 13px; color: var(--text2); }
 input[type="number"] {
   width: 76px; background: var(--surface2);
   border: 1px solid var(--border2); border-radius: var(--rs);
@@ -168,7 +167,7 @@ input[type="number"]:focus { border-color: var(--amber); }
 }
 .about-inner {
   display: grid;
-  grid-template-columns: 2fr 3fr;
+  grid-template-columns: 1fr 1fr;
   gap: 40px;
   align-items: start;
 }
@@ -217,7 +216,7 @@ input[type="number"]:focus { border-color: var(--amber); }
 .comparison-section { display: none; padding: 20px 28px 32px; }
 .comparison-section.on { display: block; }
 .cmp-hdr {
-  display: grid; grid-template-columns: 2fr 3fr;
+  display: grid; grid-template-columns: 1fr 1fr;
   background: var(--surface); border: 1px solid var(--border);
   border-radius: var(--r) var(--r) 0 0;
   overflow: hidden;
@@ -228,9 +227,9 @@ input[type="number"]:focus { border-color: var(--amber); }
 }
 .cmp-lbl.base { color: var(--text3); border-right: 1px solid var(--border); }
 .cmp-lbl.time { color: var(--amber); }
-.cmp-sub { font-weight: 400; color: var(--text3); text-transform: none; letter-spacing: 0; margin-left: 8px; }
+.cmp-sub { font-weight: 400; font-size: 12px; color: var(--text2); text-transform: none; letter-spacing: 0; margin-left: 8px; }
 .cmp-body {
-  display: grid; grid-template-columns: 2fr 3fr;
+  display: grid; grid-template-columns: 1fr 1fr;
   border: 1px solid var(--border); border-top: none;
   border-radius: 0 0 var(--r) var(--r);
   min-height: 320px;
@@ -253,12 +252,12 @@ input[type="number"]:focus { border-color: var(--amber); }
 .ypill { background: var(--surface3); color: var(--text3); border-radius: 3px; padding: 1px 5px; font-size: 10px; font-weight: 600; }
 .ypill.hit  { background: var(--amber-dim); color: var(--amber); border: 1px solid var(--amber-bdr); }
 .ypill.none { font-style: italic; }
-.pcard-text { font-size: 11px; line-height: 1.5; color: var(--text3); }
+.pcard-text { font-size: 12px; line-height: 1.55; color: var(--text2); }
 .era-ind { display: inline-block; margin-top: 5px; font-size: 10px; font-weight: 600; padding: 2px 7px; border-radius: 3px; }
 .era-ind.match { background: var(--amber-dim); color: var(--amber); }
 .era-ind.miss  { background: var(--red-dim);   color: var(--red); }
 
-.empty-state { text-align: center; padding: 48px 16px; color: var(--text3); font-size: 12px; line-height: 1.7; }
+.empty-state { text-align: center; padding: 48px 16px; color: var(--text2); font-size: 13px; line-height: 1.7; }
 
 ::-webkit-scrollbar { width: 4px; }
 ::-webkit-scrollbar-track { background: transparent; }
@@ -291,7 +290,7 @@ input[type="number"]:focus { border-color: var(--amber); }
       </div>
       <div class="about-step">
         <div class="step-num">Step 2</div>
-        <div class="step-text">Click Run Comparison. The baseline and your time-aware system both search the same 12,695-passage corpus at once.</div>
+        <div class="step-text">Click Run Comparison. Standard Retrieval and Time-Aware RAG both search the same 12,695-passage corpus simultaneously.</div>
       </div>
       <div class="about-step">
         <div class="step-num">Step 3</div>
@@ -459,16 +458,16 @@ input[type="number"]:focus { border-color: var(--amber); }
 <div class="comparison-section" id="comparison-section">
 
   <div class="cmp-hdr">
-    <div class="cmp-lbl base">Baseline<span class="cmp-sub">facebook/contriever-msmarco &middot; no temporal awareness</span></div>
-    <div class="cmp-lbl time">Your System<span class="cmp-sub">Time-Aware Contriever + MRAG re-ranking</span></div>
+    <div class="cmp-lbl base">Standard Retrieval<span class="cmp-sub">facebook/contriever-msmarco &middot; no temporal awareness</span></div>
+    <div class="cmp-lbl time">Time-Aware RAG<span class="cmp-sub">fine-tuned Contriever + MRAG re-ranking</span></div>
   </div>
 
   <div class="cmp-body">
     <div class="result-col base" id="base-results">
-      <div class="empty-state">Results will appear here after running a query.</div>
+      <div class="empty-state">Standard Retrieval results will appear here.</div>
     </div>
     <div class="result-col time" id="time-results">
-      <div class="empty-state">Results will appear here after running a query.</div>
+      <div class="empty-state">Time-Aware RAG results will appear here.</div>
     </div>
   </div>
 
@@ -595,7 +594,7 @@ async function runPipeline() {
       "Grounded to top-5 MRAG-re-ranked passages  ·  " + latency + " ms  ·  llama-3.1-8b-instant via Groq";
   } else {
     document.getElementById("answer-body").innerHTML =
-      '<span class="no-key">Generation requires a GROQ_API_KEY environment variable set on the Space. Retrieval comparison below is fully functional without it.</span>';
+      '<span class="no-key">Answer generation requires a GROQ_API_KEY secret configured on the Space. The retrieval comparison below is fully functional without it.</span>';
     document.getElementById("answer-meta").textContent = "Pipeline: " + latency + " ms";
   }
 
